@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<style>:root{padding-top:env(safe-area-inset-top,0px)}body{margin:0}[hidden]{display:none!important}</style>
+<title>Учёт айфонов</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800&display=swap">
+<style>
+/* Layout: one-column phone ledger — period profit on top, entries list, fixed add bar at the bottom */
+:root{
+  --bg:#f3f5f4; --surface:#ffffff; --fg:#14201b; --muted:#5f6d67; --line:#dde3e0;
+  --accent:#0d6b4f; --accent-fg:#ffffff; --accent-soft:#e1efe9;
+  --neg:#b4332a; --neg-soft:#f7e3e1; --warn:#8a5a00; --warn-soft:#f6ecd6;
+  --font:"Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1513; --surface:#18201d; --fg:#e8eeeb; --muted:#93a29b; --line:#2a3531;
+  --accent:#3fbf8f; --accent-fg:#06130e; --accent-soft:#16302a;
+  --neg:#f08178; --neg-soft:#3a1d1b; --warn:#e3b45c; --warn-soft:#3a2e15; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1513; --surface:#18201d; --fg:#e8eeeb; --muted:#93a29b; --line:#2a3531;
+  --accent:#3fbf8f; --accent-fg:#06130e; --accent-soft:#16302a;
+  --neg:#f08178; --neg-soft:#3a1d1b; --warn:#e3b45c; --warn-soft:#3a2e15; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:16px calc(96px + env(safe-area-inset-bottom,0px))}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.num{font-variant-numeric:tabular-nums}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{font-size:20px;font-weight:800;margin:0;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:13px}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ghost{background:none;border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:14px}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px}
+.seg button{border:0;background:none;border-radius:9px;padding:8px 4px;font-size:14px;font-weight:500;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--fg);font-weight:600}
+.hero{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:14px}
+.hero .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.big{font-size:34px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+.big.neg{color:var(--neg)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;border-top:1px solid var(--line);padding-top:14px}
+.stats div{min-width:0}
+.stats b{display:block;font-size:16px;font-weight:700;overflow-wrap:anywhere}
+.stats span{font-size:12px;color:var(--muted)}
+.stockbar{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--warn-soft);color:var(--fg);border-radius:12px;padding:12px 14px;font-size:14px}
+.stockbar b{color:var(--warn)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tabs button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:13px;color:var(--muted)}
+.tabs button[aria-pressed="true"]{border-color:var(--accent);color:var(--fg);font-weight:600}
+.list{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.row{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:12px 14px;border:0;border-bottom:1px solid var(--line);background:none;text-align:left;width:100%}
+.row:last-child{border-bottom:0}
+.row .t{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.row .m{font-size:13px;color:var(--muted);min-width:0}
+.row .p{font-weight:700;text-align:right}
+.row .s{font-size:12px;text-align:right}
+.pos{color:var(--accent)} .negc{color:var(--neg)}
+.chip{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;margin-left:6px;vertical-align:1px}
+.chip.stock{background:var(--warn-soft);color:var(--warn);padding:1px 7px}
+.chip.exp{background:var(--neg-soft);color:var(--neg)}
+.empty{padding:22px 18px;display:flex;flex-direction:column;gap:10px;color:var(--muted);font-size:14px}
+.empty h3{margin:0;color:var(--fg);font-size:16px}
+.formula{background:var(--accent-soft);color:var(--fg);border-radius:10px;padding:10px 12px;font-size:13px}
+.note{font-size:12px;color:var(--muted);text-align:center}
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--bg);border-top:1px solid var(--line);
+  padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.bar .in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:2fr 1fr;gap:8px}
+.primary{background:var(--accent);color:var(--accent-fg);border:0;border-radius:12px;padding:14px;font-weight:700;font-size:16px}
+.secondary{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;font-weight:600}
+.danger{background:var(--neg-soft);color:var(--neg);border:0;border-radius:12px;padding:14px;font-weight:600}
+/* sheet */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;max-height:92%;overflow-y:auto;background:var(--surface);
+  border-radius:18px 18px 0 0;padding:18px max(16px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.sheet form{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.sheet h2{margin:0;font-size:18px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid2>*{min-width:0}
+label{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--muted);font-weight:500}
+input,select,textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 12px;width:100%;min-width:0;font-size:16px}
+fieldset{border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:10px}
+legend{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;margin-bottom:10px;padding:0}
+.calc{display:flex;justify-content:space-between;align-items:baseline;gap:10px;border-top:1px dashed var(--line);padding-top:12px}
+.calc .big{font-size:26px}
+.calc small{color:var(--muted);font-size:12px;display:block}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.actions .primary{grid-column:1/-1}
+.err{color:var(--neg);font-size:13px;margin:0}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(88px + env(safe-area-inset-bottom,0px));z-index:30;background:var(--fg);color:var(--bg);padding:9px 14px;border-radius:10px;font-size:14px}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Учёт айфонов</h1>
+      <div class="sub" id="modeNote">Записи хранятся на этом телефоне</div>
+    </div>
+    <button class="ghost" id="exportBtn" type="button">Экспорт</button>
+  </header>
+
+  <div class="seg" role="group" aria-label="Период">
+    <button type="button" data-p="today">Сегодня</button>
+    <button type="button" data-p="week">Неделя</button>
+    <button type="button" data-p="month" aria-pressed="true">Месяц</button>
+    <button type="button" data-p="all">Всё</button>
+  </div>
+
+  <section class="hero" aria-live="polite">
+    <div>
+      <div class="lbl" id="heroLbl">Чистая прибыль за месяц</div>
+      <div class="big num" id="profit">0 ₸</div>
+    </div>
+    <div class="stats">
+      <div><b class="num" id="sold">0</b><span>продано</span></div>
+      <div><b class="num" id="revenue">0 ₸</b><span>выручка</span></div>
+      <div><b class="num" id="expenses">0 ₸</b><span>расходы</span></div>
+    </div>
+  </section>
+
+  <div class="stockbar" id="stockBox" hidden>
+    <span>В наличии <b class="num" id="stockCnt">0</b> шт.</span>
+    <span>заморожено <b class="num" id="stockSum">0 ₸</b></span>
+  </div>
+
+  <div class="tabs" role="group" aria-label="Показать">
+    <button type="button" data-f="all" aria-pressed="true">Все</button>
+    <button type="button" data-f="sold">Продано</button>
+    <button type="button" data-f="stock">В наличии</button>
+    <button type="button" data-f="exp">Расходы</button>
+  </div>
+
+  <div class="list" id="list"></div>
+  <p class="note" id="foot"></p>
+</div>
+
+<div class="bar"><div class="in">
+  <button class="primary" type="button" id="addPhone">+ Телефон</button>
+  <button class="secondary" type="button" id="addExp">+ Расход</button>
+</div></div>
+
+<div class="scrim" id="scrim" hidden></div>
+<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <form id="form" novalidate>
+    <h2 id="sheetTitle">Телефон</h2>
+
+    <div id="phoneFields">
+      <fieldset>
+        <legend>Закуп</legend>
+        <div class="grid2">
+          <label>Модель<input id="f-model" list="models" placeholder="iPhone 15 Pro" autocomplete="off"></label>
+          <label>Память<select id="f-mem"><option></option><option>64 ГБ</option><option>128 ГБ</option><option>256 ГБ</option><option>512 ГБ</option><option>1 ТБ</option></select></label>
+          <label>Состояние<select id="f-cond"><option>Новый</option><option>Б/у</option></select></label>
+          <label>Дата закупа<input id="f-bdate" type="date"></label>
+        </div>
+        <label>Цена закупа, ₸<input id="f-buy" inputmode="numeric" placeholder="380 000"></label>
+        <label>IMEI (необязательно)<input id="f-imei" inputmode="numeric" placeholder="последние цифры"></label>
+      </fieldset>
+      <fieldset style="margin-top:16px">
+        <legend>Продажа · оставь пустым, если ещё не продан</legend>
+        <div class="grid2">
+          <label>Цена продажи, ₸<input id="f-sell" inputmode="numeric" placeholder="430 000"></label>
+          <label>Дата продажи<input id="f-sdate" type="date"></label>
+          <label>Оплата<select id="f-pay"><option>Наличные</option><option>Kaspi перевод</option><option>Kaspi рассрочка</option><option>Kaspi Red</option><option>Карта / терминал</option><option>Другое</option></select></label>
+          <label>Комиссия, %<input id="f-fee" inputmode="decimal" placeholder="0"></label>
+        </div>
+        <label>Доп. расходы на продажу, ₸<input id="f-extra" inputmode="numeric" placeholder="чехол, стекло, такси"></label>
+      </fieldset>
+    </div>
+
+    <div id="expFields" hidden>
+      <fieldset>
+        <label>За что<input id="e-name" list="expNames" placeholder="Аренда места в ЦУМе" autocomplete="off"></label>
+        <div class="grid2">
+          <label>Сумма, ₸<input id="e-sum" inputmode="numeric" placeholder="150 000"></label>
+          <label>Дата<input id="e-date" type="date"></label>
+        </div>
+      </fieldset>
+    </div>
+
+    <label>Заметка<input id="f-note" placeholder="кому продал, трейд-ин и т.п."></label>
+
+    <div class="calc" id="calc">
+      <div><small id="calcLbl">Чистая прибыль</small><small id="calcHow"></small></div>
+      <div class="big num" id="calcVal">—</div>
+    </div>
+
+    <p class="err" id="err" hidden></p>
+    <div class="actions">
+      <button class="primary" type="submit" id="saveBtn">Сохранить</button>
+      <button class="secondary" type="button" id="cancelBtn">Отмена</button>
+      <button class="danger" type="button" id="delBtn">Удалить</button>
+    </div>
+  </form>
+</div>
+
+<div class="scrim" id="xScrim" hidden></div>
+<div class="sheet" id="xSheet" hidden role="dialog" aria-modal="true" aria-label="Экспорт">
+  <form id="xForm" novalidate>
+    <h2>Экспорт в таблицу</h2>
+    <p class="sub" style="margin:0">Скопируй текст и вставь в Google Таблицы или Excel. Столбцы разделены точкой с запятой.</p>
+    <textarea id="xText" rows="8" readonly></textarea>
+    <div class="actions">
+      <button class="primary" type="button" id="xCopy">Скопировать</button>
+      <button class="secondary" type="button" id="xClose" style="grid-column:1/-1">Закрыть</button>
+    </div>
+  </form>
+</div>
+
+<datalist id="models">
+  <option>iPhone 11</option><option>iPhone 12</option><option>iPhone 12 Pro</option><option>iPhone 13</option><option>iPhone 13 Pro</option><option>iPhone 13 Pro Max</option>
+  <option>iPhone 14</option><option>iPhone 14 Pro</option><option>iPhone 14 Pro Max</option><option>iPhone 15</option><option>iPhone 15 Pro</option><option>iPhone 15 Pro Max</option>
+  <option>iPhone 16</option><option>iPhone 16 Pro</option><option>iPhone 16 Pro Max</option><option>iPhone 17</option><option>iPhone 17 Pro</option><option>iPhone 17 Pro Max</option>
+</datalist>
+<datalist id="expNames"><option>Аренда места</option><option>Реклама</option><option>Такси / доставка</option><option>Чехлы и стёкла (закуп)</option><option>Ремонт</option></datalist>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+const LS_KEY='iphone-uchet-v1', LS_FEE='iphone-uchet-fees';
+const $=id=>document.getElementById(id);
+const lsGet=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+
+let entries=lsGet(LS_KEY,[]);
+let mode='local', col=null, period='month', filter='all', editing=null, kind='phone', delArmed=false;
+let downloads=null;
+
+const n=v=>{const x=parseFloat(String(v||'').replace(/\s/g,'').replace(',','.'));return isFinite(x)?x:0};
+const money=v=>Math.round(v).toLocaleString('ru-RU').replace(/,/g,' ')+' ₸';
+const pad=x=>String(x).padStart(2,'0');
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+const fmtDate=s=>{if(!s)return'';const [y,m,d]=s.split('-');return d+'.'+m+'.'+y.slice(2)};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+
+function profitOf(e){
+  if(e.kind!=='phone'||!e.sell)return 0;
+  return e.sell-e.buy-e.sell*(e.fee||0)/100-(e.extra||0);
+}
+function periodStart(p){
+  const d=new Date();d.setHours(0,0,0,0);
+  if(p==='today')return d;
+  if(p==='week'){const w=(d.getDay()+6)%7;d.setDate(d.getDate()-w);return d}
+  if(p==='month'){d.setDate(1);return d}
+  return null;
+}
+function inPeriod(dateStr){
+  const s=periodStart(period); if(!s)return true; if(!dateStr)return false;
+  const [y,m,d]=dateStr.split('-').map(Number); return new Date(y,m-1,d)>=s;
+}
+const PLBL={today:'сегодня',week:'эту неделю',month:'этот месяц',all:'всё время'};
+
+function render(){
+  const sold=entries.filter(e=>e.kind==='phone'&&e.sell&&inPeriod(e.sdate));
+  const exps=entries.filter(e=>e.kind==='exp'&&inPeriod(e.date));
+  const stock=entries.filter(e=>e.kind==='phone'&&!e.sell);
+  const gross=sold.reduce((a,e)=>a+profitOf(e),0);
+  const expSum=exps.reduce((a,e)=>a+e.sum,0);
+  const net=gross-expSum;
+  $('heroLbl').textContent='Чистая прибыль за '+PLBL[period];
+  $('profit').textContent=money(net);
+  $('profit').classList.toggle('neg',net<0);
+  $('sold').textContent=sold.length+' шт.';
+  $('revenue').textContent=money(sold.reduce((a,e)=>a+e.sell,0));
+  $('expenses').textContent=money(expSum);
+  $('stockBox').hidden=!stock.length;
+  $('stockCnt').textContent=stock.length;
+  $('stockSum').textContent=money(stock.reduce((a,e)=>a+e.buy,0));
+
+  let rows=entries.slice();
+  if(filter==='sold')rows=rows.filter(e=>e.kind==='phone'&&e.sell);
+  if(filter==='stock')rows=rows.filter(e=>e.kind==='phone'&&!e.sell);
+  if(filter==='exp')rows=rows.filter(e=>e.kind==='exp');
+  const key=e=>e.kind==='exp'?e.date:(e.sdate||e.bdate)||'';
+  rows.sort((a,b)=>key(b).localeCompare(key(a))||(b.created||0)-(a.created||0));
+
+  const list=$('list'); list.textContent='';
+  if(!rows.length){
+    const box=document.createElement('div');box.className='empty';
+    if(!entries.length){
+      box.innerHTML='<h3>Пока нет записей</h3><div>Купил телефон — нажми «+ Телефон» и впиши закуп. Продал — открой его и впиши цену продажи. Аренду и прочие траты добавляй через «+ Расход».</div><div class="formula">Прибыль = продажа − закуп − комиссия Kaspi − доп. расходы</div>';
+    } else box.innerHTML='<div>В этом разделе пусто.</div>';
+    list.appendChild(box);
+  }
+  for(const e of rows){
+    const b=document.createElement('button');b.type='button';b.className='row';
+    const t=document.createElement('span');t.className='t';
+    const p=document.createElement('span');p.className='p num';
+    const m=document.createElement('span');m.className='m';
+    const s=document.createElement('span');s.className='s num';
+    if(e.kind==='exp'){
+      t.textContent=e.name;const c=document.createElement('span');c.className='chip exp';c.textContent='расход';t.appendChild(c);
+      p.textContent='−'+money(e.sum);p.classList.add('negc');
+      m.textContent=fmtDate(e.date)+(e.note?' · '+e.note:'');
+    } else {
+      t.textContent=[e.model,e.mem].filter(Boolean).join(' ')+(e.cond==='Б/у'?' · б/у':'');
+      if(e.sell){
+        const pr=profitOf(e);p.textContent=(pr>=0?'+':'')+money(pr);p.classList.add(pr>=0?'pos':'negc');
+        m.textContent=fmtDate(e.sdate)+' · '+e.pay+(e.note?' · '+e.note:'');
+        s.textContent=money(e.buy)+' → '+money(e.sell);
+      } else {
+        const c=document.createElement('span');c.className='chip stock';c.textContent='в наличии';t.appendChild(c);
+        p.textContent=money(e.buy);
+        m.textContent='куплен '+fmtDate(e.bdate)+(e.note?' · '+e.note:'');
+      }
+    }
+    b.append(t,p,m,s);
+    b.addEventListener('click',()=>openSheet(e.kind,e));
+    list.appendChild(b);
+  }
+  $('foot').textContent=entries.length?('Всего записей: '+entries.length):'';
+}
+
+/* ---------- sheet ---------- */
+const fees=lsGet(LS_FEE,{});
+function openSheet(k,e){
+  kind=k; editing=e||null; delArmed=false;
+  $('phoneFields').hidden=k!=='phone'; $('expFields').hidden=k!=='exp';
+  $('sheetTitle').textContent=e?(k==='exp'?'Расход':'Телефон'):(k==='exp'?'Новый расход':'Новый телефон');
+  $('delBtn').hidden=!e; $('delBtn').textContent='Удалить';
+  $('err').hidden=true;
+  const v=(id,x)=>{$(id).value=x==null?'':x};
+  if(k==='phone'){
+    v('f-model',e&&e.model);v('f-mem',e?e.mem:'');v('f-cond',e?e.cond:'Новый');v('f-bdate',e?e.bdate:today());
+    v('f-buy',e&&e.buy?e.buy:'');v('f-imei',e&&e.imei);
+    v('f-sell',e&&e.sell?e.sell:'');v('f-sdate',e&&e.sdate?e.sdate:'');v('f-pay',e?e.pay:'Наличные');
+    v('f-fee',e&&e.sell?e.fee:'');v('f-extra',e&&e.extra?e.extra:'');
+  } else {
+    v('e-name',e&&e.name);v('e-sum',e?e.sum:'');v('e-date',e?e.date:today());
+  }
+  v('f-note',e&&e.note);
+  $('calc').hidden=k!=='phone';
+  calc();
+  $('scrim').hidden=false;$('sheet').hidden=false;
+}
+function closeSheet(){$('scrim').hidden=true;$('sheet').hidden=true;editing=null}
+function calc(){
+  if(kind!=='phone')return;
+  const buy=n($('f-buy').value),sell=n($('f-sell').value),fee=n($('f-fee').value),extra=n($('f-extra').value);
+  if(!sell){$('calcLbl').textContent='Ещё не продан';$('calcHow').textContent='впиши цену продажи — посчитаю прибыль';$('calcVal').textContent='—';$('calcVal').className='big num';return}
+  const feeSum=sell*fee/100,pr=sell-buy-feeSum-extra;
+  $('calcLbl').textContent='Чистая прибыль';
+  $('calcHow').textContent='комиссия '+money(feeSum)+(extra?' · расходы '+money(extra):'');
+  $('calcVal').textContent=money(pr);$('calcVal').className='big num '+(pr>=0?'pos':'negc');
+}
+['f-buy','f-sell','f-fee','f-extra'].forEach(id=>$(id).addEventListener('input',calc));
+$('f-sell').addEventListener('input',()=>{if(n($('f-sell').value)&&!$('f-sdate').value)$('f-sdate').value=today()});
+$('f-pay').addEventListener('change',()=>{const f=fees[$('f-pay').value];$('f-fee').value=f!=null?f:($('f-pay').value==='Наличные'?'':$('f-fee').value);calc()});
+
+$('form').addEventListener('submit',async ev=>{
+  ev.preventDefault();
+  const err=m=>{$('err').textContent=m;$('err').hidden=false};
+  let e;
+  if(kind==='phone'){
+    const model=$('f-model').value.trim(),buy=n($('f-buy').value),sell=n($('f-sell').value);
+    if(!model)return err('Впиши модель телефона.');
+    if(!buy)return err('Впиши цену закупа — без неё прибыль не посчитать.');
+    if(sell&&!$('f-sdate').value)$('f-sdate').value=today();
+    e={kind:'phone',model,mem:$('f-mem').value,cond:$('f-cond').value,bdate:$('f-bdate').value||today(),buy,
+       imei:$('f-imei').value.trim(),sell:sell||0,sdate:sell?$('f-sdate').value:'',pay:$('f-pay').value,
+       fee:sell?n($('f-fee').value):0,extra:n($('f-extra').value)};
+    if(sell){fees[e.pay]=e.fee;lsSet(LS_FEE,fees)}
+  } else {
+    const name=$('e-name').value.trim(),sum=n($('e-sum').value);
+    if(!name)return err('Напиши, за что расход.');
+    if(!sum)return err('Впиши сумму расхода.');
+    e={kind:'exp',name,sum,date:$('e-date').value||today()};
+  }
+  e.note=$('f-note').value.trim();
+  e.id=editing?editing.id:uid(); e.created=editing?editing.created:Date.now();
+  const wasNew=!editing;
+  closeSheet();
+  await save(e);
+  toast(wasNew?'Сохранено':'Изменения сохранены');
+});
+$('cancelBtn').addEventListener('click',closeSheet);
+$('scrim').addEventListener('click',closeSheet);
+$('delBtn').addEventListener('click',async()=>{
+  if(!editing)return;
+  if(!delArmed){delArmed=true;$('delBtn').textContent='Точно удалить?';return}
+  const id=editing.id;closeSheet();await removeEntry(id);toast('Удалено');
+});
+$('addPhone').addEventListener('click',()=>openSheet('phone'));
+$('addExp').addEventListener('click',()=>openSheet('exp'));
+document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>{
+  period=b.dataset.p;document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-pressed',x===b));render()}));
+document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>{
+  filter=b.dataset.f;document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-pressed',x===b));render()}));
+document.addEventListener('keydown',ev=>{if(ev.key==='Escape'){closeSheet();closeX()}});
+
+let tt;function toast(m){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,1800)}
+
+/* ---------- storage ---------- */
+function mirror(){lsSet(LS_KEY,entries)}
+async function save(e){
+  const i=entries.findIndex(x=>x.id===e.id);
+  if(i>=0)entries[i]=e;else entries.push(e);
+  mirror();render();
+  if(mode==='db'){
+    try{await col.doc(e.id).set(e)}
+    catch(x){if(x&&x.code==='invalid_argument'){toLocal()}else{toast('Нет связи — запись сохранена на телефоне')}}
+  }
+}
+async function removeEntry(id){
+  entries=entries.filter(x=>x.id!==id);mirror();render();
+  if(mode==='db'){try{await col.doc(id).delete()}catch(x){}}
+}
+function toLocal(){mode='local';$('modeNote').textContent='Записи хранятся на этом телефоне'}
+
+(async()=>{
+  try{
+    if(!window.claude||!window.claude.use)return;
+    const [db,user,dl]=await Promise.all([claude.use('db'),claude.use('user'),claude.use('downloads')]);
+    downloads=dl;
+    if(!db||!user)return;
+    const id=await user.id(); if(!id)return;
+    col=db.collection('data/users/'+id);
+    let first=true;
+    col.onSnapshot(snap=>{
+      const remote=snap.docs.map(d=>d.data());
+      if(first){
+        first=false;
+        mode='db';$('modeNote').textContent='Записи сохраняются в вашем аккаунте';
+        if(snap.empty&&entries.length){ // перенести локальные записи
+          (async()=>{for(const e of entries){try{await col.doc(e.id).set(e)}catch(x){if(x&&x.code==='invalid_argument'){toLocal();return}}}})();
+          return;
+        }
+      }
+      if(mode!=='db')return;
+      entries=remote.map(x=>Object.assign({},x));mirror();render();
+    },()=>{toLocal()});
+  }catch(e){}
+})();
+
+/* ---------- export ---------- */
+function csv(){
+  const head=['Тип','Модель','Память','Состояние','IMEI','Дата закупа','Закуп','Дата продажи','Продажа','Оплата','Комиссия %','Доп. расходы','Прибыль','Расход: за что','Расход: сумма','Расход: дата','Заметка'];
+  const q=v=>{v=v==null?'':String(v);return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+  const lines=[head.join(';')];
+  for(const e of entries){
+    lines.push((e.kind==='exp'
+      ?['Расход','','','','','','','','','','','','',e.name,e.sum,fmtDate(e.date),e.note]
+      :['Телефон',e.model,e.mem,e.cond,e.imei,fmtDate(e.bdate),e.buy,fmtDate(e.sdate),e.sell||'',e.sell?e.pay:'',e.sell?e.fee:'',e.extra||'',e.sell?Math.round(profitOf(e)):'','','','',e.note]
+    ).map(q).join(';'));
+  }
+  return lines.join('\n');
+}
+function closeX(){$('xScrim').hidden=true;$('xSheet').hidden=true}
+$('exportBtn').addEventListener('click',async()=>{
+  const text=csv();
+  if(downloads){
+    try{await downloads.save({filename:'uchet-iphone-'+today()+'.csv',data:'﻿'+text});return}catch(e){}
+  }
+  $('xText').value=text;$('xScrim').hidden=false;$('xSheet').hidden=false;
+});
+$('xCopy').addEventListener('click',async()=>{
+  try{await navigator.clipboard.writeText($('xText').value);toast('Скопировано')}
+  catch(e){$('xText').focus();$('xText').select();toast('Выделено — нажми «Копировать»')}
+});
+$('xClose').addEventListener('click',closeX);$('xScrim').addEventListener('click',closeX);
+
+render();
+})();
+</script>
+</body>
+</html>
